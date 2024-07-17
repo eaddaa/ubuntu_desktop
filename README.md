@@ -49,3 +49,64 @@ chmod +x ubuntu_desktop.sh
 ```
 ./ubuntu_desktop.sh
 ```
+
+```
+nano fix.sh
+```
+```
+#!/bin/bash
+
+# Version 1.1
+
+# Define the service file path
+SERVICE_FILE="/etc/systemd/system/default-interface-config.service"
+
+# Check if the script is run with root privileges
+if [ "$EUID" -ne 0 ]; then
+  echo "Please run as root."
+  exit 1
+fi
+
+# Install ethtool if it's not already installed
+if ! command -v ethtool &> /dev/null; then
+  echo "ethtool not found, installing..."
+  apt-get update
+  apt-get install -y ethtool
+fi
+
+# Get the default network interface
+DEFAULT_INTERFACE=$(ip route show default | awk '/default/ {print $5}')
+
+# Create the systemd service file
+cat <<EOL > $SERVICE_FILE
+[Unit]
+Description=Configure default network interface
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/ethtool -s $DEFAULT_INTERFACE speed 1000 duplex full autoneg off
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOL
+
+# Reload systemd to recognize the new service
+systemctl daemon-reload
+
+# Enable the service to start on boot
+systemctl enable default-interface-config.service
+
+# Start the service immediately
+systemctl start default-interface-config.service
+
+echo "Default interface configuration service loaded and started on $DEFAULT_INTERFACE."
+```
+```
+chmod +x fix.sh
+```
+```
+./fix.sh
+```
+
